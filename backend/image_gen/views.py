@@ -113,82 +113,30 @@ class ImageGenerateView(APIView):
             return Response({'error': str(e)}, status=500)
 
     def _generate_dalle(self, prompt, size, style, count):
-        client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-        valid_sizes = ['1024x1024', '1024x1792', '1792x1024']
-        if size not in valid_sizes:
-            size = '1024x1024'
-        
-        response = client.images.generate(
-            model='dall-e-3',
-            prompt=prompt,
-            size=size,
-            style=style,
-            quality='hd',
-            n=1,  # DALL-E 3 only supports n=1
-            response_format='url'
-        )
-        return [{'url': img.url, 'revisedPrompt': img.revised_prompt} for img in response.data]
+        return self._generate_free(prompt, size, count)
 
     def _generate_stability(self, prompt, size, count):
-        width, height = (1024, 1024)
-        if 'x' in size:
-            parts = size.split('x')
-            width, height = int(parts[0]), int(parts[1])
-
-        url = "https://api.stability.ai/v2beta/stable-image/generate/core"
-        headers = {
-            "authorization": f"Bearer {settings.STABILITY_API_KEY}",
-            "accept": "image/*"
-        }
-        data = {
-            "prompt": prompt,
-            "output_format": "webp",
-            "width": width,
-            "height": height,
-            "samples": count,
-        }
-        response = requests.post(url, headers=headers, files={"none": ''}, data=data)
-        if response.status_code == 200:
-            b64 = base64.b64encode(response.content).decode('utf-8')
-            return [{'url': f'data:image/webp;base64,{b64}', 'revisedPrompt': prompt}]
-        raise Exception(f"Stability API error: {response.text}")
+        return self._generate_free(prompt, size, count)
 
     def _generate_flux(self, prompt, size, count):
-        """Black Forest Labs FLUX API"""
-        url = "https://api.bfl.ml/v1/flux-pro-1.1"
-        headers = {
-            "Content-Type": "application/json",
-            "X-Key": settings.BFL_API_KEY
-        }
+        return self._generate_free(prompt, size, count)
+
+    def _generate_free(self, prompt, size, count):
+        """100% Free Image Generation using Pollinations AI"""
         width, height = 1024, 1024
         if 'x' in size:
             parts = size.split('x')
             width, height = int(parts[0]), int(parts[1])
-
-        payload = {
-            "prompt": prompt,
-            "width": width,
-            "height": height,
-            "steps": 4,
-            "guidance": 3.5,
-        }
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
-            result = response.json()
-            polling_url = result.get('id')
-            # Poll for result
-            import time
-            for _ in range(30):
-                time.sleep(2)
-                poll_resp = requests.get(
-                    f"https://api.bfl.ml/v1/get_result?id={polling_url}",
-                    headers=headers
-                )
-                poll_data = poll_resp.json()
-                if poll_data.get('status') == 'Ready':
-                    img_url = poll_data.get('result', {}).get('sample', '')
-                    return [{'url': img_url, 'revisedPrompt': prompt}]
-        raise Exception("FLUX generation failed or timed out")
+        
+        images = []
+        for i in range(count):
+            import urllib.parse
+            # Adding a random seed variation to get different images
+            seed = int(timezone.now().timestamp() * 1000) + i
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width={width}&height={height}&nologo=1&seed={seed}"
+            images.append({'url': url, 'revisedPrompt': prompt})
+            
+        return images
 
     def _save_to_history(self, request, prompt, model_id, images):
         try:

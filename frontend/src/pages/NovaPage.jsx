@@ -301,28 +301,33 @@ export default function NovaPage() {
           setGesture('idle')
         }
 
-        // Text to speech
+        // 100% Free Text to speech via Browser Native API
         setSpeaking(true)
         try {
-          const audioRes = await fetch('/api/audio/tts/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: fullResponse.substring(0, 300), provider: 'openai', voice: 'nova' }),
-          })
-          if (audioRes.ok) {
-            const blob = await audioRes.blob()
-            const url = URL.createObjectURL(blob)
-            audioRef.current = new Audio(url)
-            audioRef.current.onended = () => {
-              setSpeaking(false)
-              setEmotion('neutral')
-              setGesture('idle')
-            }
-            audioRef.current.play()
-          } else {
+          window.speechSynthesis.cancel() // Stop any current speech
+          const utterance = new SpeechSynthesisUtterance(fullResponse.substring(0, 300))
+          utterance.lang = 'en-US'
+          utterance.pitch = 1.2
+          utterance.rate = 1.0
+          
+          // Try to find a female voice
+          const voices = window.speechSynthesis.getVoices()
+          const femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Google UK English Female') || v.name.includes('Zira') || v.name.includes('Samantha') || v.name.includes('Karen'))
+          if (femaleVoice) {
+            utterance.voice = femaleVoice
+          }
+
+          utterance.onend = () => {
+            setSpeaking(false)
+            setEmotion('neutral')
+            setGesture('idle')
+          }
+          utterance.onerror = () => {
             setSpeaking(false)
             setEmotion('neutral')
           }
+          
+          window.speechSynthesis.speak(utterance)
         } catch {
           setSpeaking(false)
           setEmotion('neutral')

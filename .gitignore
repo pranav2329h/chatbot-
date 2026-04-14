@@ -1,0 +1,39 @@
+# Environment Variables & Secrets
+.env
+.env.*
+*.env
+frontend/.env
+backend/.env
+firebase_credentials.json
+
+# Node/React (Frontend)
+node_modules/
+dist/
+build/
+.npm/
+
+# Python/Django (Backend)
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+.venv/
+venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Media / Static files collected by Django
+media/
+staticfiles/
+
+# OS/IDE settings
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
