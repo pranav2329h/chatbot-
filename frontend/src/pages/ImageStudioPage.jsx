@@ -116,15 +116,26 @@ export default function ImageStudioPage() {
             placeholder="Describe what you want to create..."
             style={{ minHeight: 120 }}
           />
-          <button
-            id="btn-optimize-prompt"
-            onClick={optimizePrompt}
-            disabled={optimizing || !prompt.trim()}
-            className="btn btn-secondary btn-sm"
-            style={{ alignSelf: 'flex-end', marginTop: 4 }}
-          >
-            {optimizing ? '⏳ Optimizing...' : '✨ Optimize Prompt'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button
+              id="btn-optimize-prompt"
+              onClick={optimizePrompt}
+              disabled={optimizing || !prompt.trim()}
+              className="btn btn-secondary btn-sm"
+              style={{ flex: 1 }}
+            >
+              {optimizing ? '⏳ Optimizing...' : '✨ Optimize Prompt'}
+            </button>
+            <button
+              id="btn-generate-quick"
+              onClick={generate}
+              disabled={loading || !prompt.trim()}
+              className="btn btn-primary btn-sm"
+              style={{ flex: 1.5 }}
+            >
+              {loading ? '⏳ Generating...' : '🎨 Generate Image'}
+            </button>
+          </div>
         </div>
 
         {/* Style */}
@@ -213,6 +224,7 @@ export default function ImageStudioPage() {
                 src={selectedImage.url}
                 alt="Generated"
                 className="image-result"
+                referrerPolicy="no-referrer"
               />
               <div style={{
                 position: 'absolute',
@@ -224,6 +236,9 @@ export default function ImageStudioPage() {
                   href={selectedImage.url}
                   download="nexus-ai-image.png"
                   className="btn btn-secondary btn-sm glass"
+                  referrerPolicy="no-referrer"
+                  target="_blank"
+                  rel="noreferrer"
                 >
                   ⬇️ Download
                 </a>
@@ -247,7 +262,7 @@ export default function ImageStudioPage() {
                         cursor: 'pointer',
                       }}
                     >
-                      <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={img.url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   ))}
                 </div>

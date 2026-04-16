@@ -46,7 +46,7 @@ class ImageModelsView(APIView):
 
 
 class OptimizePromptView(APIView):
-    """🆕 UNIQUE: AI-powered prompt optimizer"""
+    """🆕 UNIQUE: 100% Free AI-powered prompt optimizer"""
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -56,19 +56,25 @@ class OptimizePromptView(APIView):
             return Response({'error': 'Prompt required'}, status=400)
 
         try:
-            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model='gpt-4o-mini',
-                messages=[{
-                    'role': 'system',
-                    'content': f'You are an expert image prompt engineer. Enhance and optimize the given prompt for {style} image generation. Make it more detailed, vivid, and technically precise. Return ONLY the enhanced prompt, nothing else.'
-                }, {
-                    'role': 'user',
-                    'content': original_prompt
-                }],
-                max_tokens=300,
-            )
-            enhanced = response.choices[0].message.content.strip()
+            payload = {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": f"You are an expert image prompt engineer. Enhance and optimize the given prompt for {style} image generation. Make it more detailed, vivid, and technically precise. Return ONLY the enhanced prompt, nothing else."
+                    },
+                    {
+                        "role": "user",
+                        "content": original_prompt
+                    }
+                ],
+                "model": "openai",
+                "stream": False
+            }
+            resp = requests.post("https://text.pollinations.ai/openai", json=payload, timeout=30)
+            resp.raise_for_status()
+            enhanced = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            if not enhanced: 
+                enhanced = original_prompt
             return Response({'original': original_prompt, 'enhanced': enhanced})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
@@ -87,18 +93,9 @@ class ImageGenerateView(APIView):
         if not prompt:
             return Response({'error': 'Prompt required'}, status=400)
 
-        model_config = IMAGE_MODELS.get(model_id, {})
-        provider = model_config.get('provider', 'openai')
-
         try:
-            if provider == 'openai':
-                images = self._generate_dalle(prompt, size, style, count)
-            elif provider == 'stability':
-                images = self._generate_stability(prompt, size, count)
-            elif provider == 'bfl':
-                images = self._generate_flux(prompt, size, count)
-            else:
-                return Response({'error': 'Unknown provider'}, status=400)
+            # We enforce use of FLUX via Pollinations for all model requests to guarantee free, high-quality images.
+            images = self._generate_free(prompt, size, style, count, model_type='flux')
 
             # Save to Firestore history
             self._save_to_history(request, prompt, model_id, images)
@@ -112,29 +109,23 @@ class ImageGenerateView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
-    def _generate_dalle(self, prompt, size, style, count):
-        return self._generate_free(prompt, size, count)
-
-    def _generate_stability(self, prompt, size, count):
-        return self._generate_free(prompt, size, count)
-
-    def _generate_flux(self, prompt, size, count):
-        return self._generate_free(prompt, size, count)
-
-    def _generate_free(self, prompt, size, count):
+    def _generate_free(self, prompt, size, style, count, model_type='flux'):
         """100% Free Image Generation using Pollinations AI"""
+        import urllib.parse
         width, height = 1024, 1024
         if 'x' in size:
             parts = size.split('x')
             width, height = int(parts[0]), int(parts[1])
         
+        # Pollinations does not support native styles via API parameters, so we append the style to the prompt
+        styled_prompt = f"{prompt}, masterpiece, highly detailed, in the style of {style}" if style else prompt
+        
         images = []
         for i in range(count):
-            import urllib.parse
             # Adding a random seed variation to get different images
             seed = int(timezone.now().timestamp() * 1000) + i
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width={width}&height={height}&nologo=1&seed={seed}"
-            images.append({'url': url, 'revisedPrompt': prompt})
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(styled_prompt)}?width={width}&height={height}&nologo=1&seed={seed}&model={model_type}"
+            images.append({'url': url, 'revisedPrompt': styled_prompt})
             
         return images
 
