@@ -9,6 +9,7 @@ import useChatStore from '../store/chatStore'
 import toast from 'react-hot-toast'
 
 const MODELS = [
+  { id: 'pollinations-text', name: 'Nexus Free AI', icon: '⚡', provider: 'pollinations' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', icon: '🔵', provider: 'google' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', icon: '🔷', provider: 'google' },
   { id: 'gpt-4o', name: 'GPT-4o', icon: '🟢', provider: 'openai' },
@@ -87,6 +88,8 @@ function MessageBubble({ message }) {
                     fontFamily: 'var(--font-mono)',
                     fontSize: '0.9em',
                     color: 'var(--clr-accent)',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap'
                   }} {...props}>{children}</code>
                 )
               },
@@ -174,10 +177,11 @@ export default function ChatPage() {
       sessionId = session.id
     }
 
+    const currentInput = input.trim()
     const userMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: currentInput,
       timestamp: new Date().toISOString(),
     }
 
@@ -185,6 +189,23 @@ export default function ChatPage() {
     setInput('')
     setIsStreaming(true)
     setStreamingMessage('')
+
+    let finalSystemPrompt = systemPrompt
+
+    if (searchEnabled) {
+      try {
+        setStreamingMessage('Searching the web for accurate and related content...\n\n')
+        const searchRes = await chatAPI.searchWeb(currentInput)
+        setStreamingMessage('')
+        if (searchRes.data && searchRes.data.results && searchRes.data.results.length > 0) {
+          const searchContext = searchRes.data.results.map((r, i) => `[${i+1}] ${r.title}\n${r.snippet}\nUrl: ${r.url}`).join('\n\n')
+          finalSystemPrompt += `\n\n=== WEB SEARCH RESULTS ===\nBelow are real-time web search results related to the user's latest message. Use this exact information to provide high-accuracy and related content in your response:\n${searchContext}`
+        }
+      } catch (err) {
+        console.error('Web search failed:', err)
+        setStreamingMessage('')
+      }
+    }
 
     // Build message history for API
     const history = [...(messages[sessionId] || []), userMessage].map(m => ({
@@ -196,7 +217,7 @@ export default function ChatPage() {
       messages: history,
       model: selectedModel,
       sessionId,
-      systemPrompt,
+      systemPrompt: finalSystemPrompt,
       onChunk: (chunk) => appendToStream(chunk),
       onDone: () => {
         finalizeStream(sessionId)
@@ -207,7 +228,7 @@ export default function ChatPage() {
         setStreamingMessage('')
       },
     })
-  }, [input, isStreaming, activeSessionId, selectedModel, systemPrompt, messages, createNewSession, addMessage, setIsStreaming, setStreamingMessage, appendToStream, finalizeStream])
+  }, [input, isStreaming, activeSessionId, selectedModel, systemPrompt, searchEnabled, messages, createNewSession, addMessage, setIsStreaming, setStreamingMessage, appendToStream, finalizeStream])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

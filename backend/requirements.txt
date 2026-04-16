@@ -9,3 +9,4 @@ anthropic==0.94.0
 requests==2.32.3
 Pillow==11.2.1
 gunicorn==25.3.0
+ddgs==9.13.1

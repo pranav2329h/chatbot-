@@ -54,6 +54,14 @@ AVAILABLE_MODELS = {
         'contextWindow': 2000000,
         'streaming': True,
     },
+    'pollinations-text': {
+        'name': 'Nexus Free AI',
+        'provider': 'pollinations',
+        'description': 'Free uncensored AI without API keys',
+        'icon': '⚡',
+        'contextWindow': 128000,
+        'streaming': True,
+    },
 }
 
 
@@ -126,6 +134,16 @@ def stream_google(messages, model, system_prompt=None):
     )
     try:
         with requests.post(url, json=payload, stream=True, timeout=60) as resp:
+            if resp.status_code != 200:
+                try:
+                    error_data = resp.json()
+                    error_msg = error_data.get('error', {}).get('message', f'HTTP Error {resp.status_code}')
+                except:
+                    error_msg = f'HTTP Error {resp.status_code}'
+                yield f"data: {json.dumps({'error': f'Google API Error: {error_msg}'})}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+
             for line in resp.iter_lines(decode_unicode=True):
                 if not line or not line.startswith('data: '):
                     continue
@@ -146,6 +164,40 @@ def stream_google(messages, model, system_prompt=None):
                     pass
     except Exception as e:
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+def stream_pollinations(messages, model, system_prompt=None):
+    all_messages = []
+    if system_prompt:
+        all_messages.append({'role': 'system', 'content': system_prompt})
+    all_messages.extend(messages)
+    
+    url = "https://text.pollinations.ai/openai"
+    payload = {
+        'messages': all_messages,
+        'model': 'openai',
+        'stream': True
+    }
+    
+    try:
+        with requests.post(url, json=payload, stream=True, timeout=60) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines(decode_unicode=True):
+                if not line or not line.startswith('data: '):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == '[DONE]':
+                    break
+                try:
+                    data = json.loads(data_str)
+                    text = data.get('choices', [{}])[0].get('delta', {}).get('content')
+                    if text:
+                        yield f"data: {json.dumps({'chunk': text})}\n\n"
+                except json.JSONDecodeError:
+                    pass
+    except Exception as e:
+        yield f"data: {json.dumps({'error': f'Pollinations Error: {str(e)}'})}\n\n"
     yield "data: [DONE]\n\n"
 
 
@@ -179,6 +231,8 @@ class ChatStreamView(APIView):
                     yield from stream_anthropic(messages, model_id, system_prompt)
                 elif provider == 'google':
                     yield from stream_google(messages, model_id, system_prompt)
+                elif provider == 'pollinations':
+                    yield from stream_pollinations(messages, model_id, system_prompt)
                 else:
                     yield f"data: {json.dumps({'error': f'Unknown provider: {provider}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -288,16 +342,16 @@ class WebSearchView(APIView):
             return Response({'error': str(e)}, status=500)
 
     def _search(self, query):
-        import urllib.parse
-        url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_html=1"
-        resp = requests.get(url, timeout=5)
-        data = resp.json()
-        results = []
-        for r in data.get('RelatedTopics', [])[:5]:
-            if 'Text' in r:
+        try:
+            from ddgs import DDGS
+            results = []
+            for r in DDGS().text(query, max_results=5):
                 results.append({
-                    'title': r.get('Text', '')[:100],
-                    'snippet': r.get('Text', ''),
-                    'url': r.get('FirstURL', ''),
+                    'title': r.get('title', '')[:100],
+                    'snippet': r.get('body', ''),
+                    'url': r.get('href', ''),
                 })
-        return results
+            return results
+        except Exception as e:
+            print(f"Web search error: {e}")
+            return []

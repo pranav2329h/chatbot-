@@ -6,7 +6,7 @@ const useChatStore = create((set, get) => ({
   messages: {},
   streamingMessage: '',
   isStreaming: false,
-  selectedModel: 'gemini-2.0-flash',
+  selectedModel: 'pollinations-text',
   systemPrompt: 'You are NEXUS AI, an incredibly intelligent, creative, and helpful AI assistant. You are knowledgeable across all domains, speak naturally, and strive to give accurate, thoughtful responses.',
 
   setModel: (model) => set({ selectedModel: model }),
